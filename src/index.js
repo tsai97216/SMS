@@ -183,7 +183,7 @@ button:disabled{opacity:.6;cursor:wait}
   });
   media.addEventListener?.("change", () => { if (theme === "system") applyTheme("system"); });
 
-  let setAccessToken("");
+  let accessToken = "";
   try { accessToken = sessionStorage.getItem("chi-sms-access-token") || ""; } catch {}
   function setAccessToken(value) {
     accessToken = value || "";
