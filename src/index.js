@@ -434,7 +434,58 @@ button:disabled{opacity:.6;cursor:wait}
     if (messageButton) {
       const message = (window.smsMessages || []).find(item => String(item.id) === messageButton.getAttribute("data-copy-message"));
       if (message) copyText(String(message.message || ""), "完整簡訊");
+      return;
     }
+    const deleteButton = event.target.closest("[data-delete-message]");
+    if (deleteButton) {
+      const id = deleteButton.getAttribute("data-delete-message");
+      const message = (window.smsMessages || []).find(item => String(item.id) === id);
+      if (!message) return;
+      if (!window.confirm("確定刪除這則簡訊？此操作無法復原，也不會刪除 Discord 中的通知。")) return;
+      deleteButton.disabled = true;
+      fetch("/api/messages/" + encodeURIComponent(id), {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + accessToken },
+      }).then(async response => {
+        if (response.status === 401) {
+          accessToken = "";
+          showInbox(false);
+          throw new Error("Chi Auth 授權已過期，請重新登入。");
+        }
+        if (!response.ok) throw new Error("刪除失敗（" + response.status + "）。");
+        window.smsMessages = (window.smsMessages || []).filter(item => String(item.id) !== id);
+        render();
+        showToast("已刪除這則簡訊");
+      }).catch(error => {
+        $("status").textContent = error.message || "刪除失敗。";
+      });
+    }
+  });
+  $("export").addEventListener("click", () => {
+    const messages = (window.smsMessages || []).filter(message => {
+      const query = $("search").value.trim().toLocaleLowerCase();
+      return (String(message.sender || "") + " " + String(message.message || "")).toLocaleLowerCase().includes(query);
+    });
+    if (!messages.length) {
+      showToast("沒有可匯出的簡訊");
+      return;
+    }
+    const quote = value => '"' + String(value ?? "").replace(/"/g, '""') + '"';
+    const rows = [
+      ["寄件者", "簡訊內容", "收到時間", "驗證碼"],
+      ...messages.map(message => [message.sender || "未知寄件者", message.message || "", message.received_at || "", extractCode(message.message)])
+    ];
+    const csv = "\uFEFF" + rows.map(row => row.map(quote).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "chi-sms-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("已匯出 " + messages.length + " 則簡訊");
   });
   $("logout").addEventListener("click", () => {
     accessToken = "";
@@ -478,6 +529,21 @@ export default {
         return json({ messages: result.results || [] });
       } catch {
         return json({ error: "Could not read messages" }, 500);
+      }
+    }
+
+    const messageDeleteMatch = url.pathname.match(/^\/api\/messages\/(\d+)$/);
+    if (request.method === "DELETE" && messageDeleteMatch) {
+      if (!(await authorizedChiAuth(request))) return json({ error: "Unauthorized" }, 401);
+      if (!env.SMS_DB) return json({ error: "Database is not configured" }, 503);
+      const id = Number(messageDeleteMatch[1]);
+      if (!Number.isSafeInteger(id) || id < 1) return json({ error: "Invalid message ID" }, 400);
+      try {
+        const result = await env.SMS_DB.prepare("DELETE FROM messages WHERE id = ?").bind(id).run();
+        if (!Number(result.meta?.changes || 0)) return json({ error: "Message not found" }, 404);
+        return json({ ok: true, deleted: id });
+      } catch {
+        return json({ error: "Could not delete message" }, 500);
       }
     }
 
