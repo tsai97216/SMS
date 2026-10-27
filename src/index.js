@@ -48,6 +48,7 @@ function page() {
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f6f8fc">
 <meta name="description" content="Chi SMS 簡訊收件匣">
+<meta name="referrer" content="no-referrer">
 <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/tsai97216/chi-design-system/main/logo/blue-w.png">
 <title>Chi SMS · 簡訊收件匣</title>
 <link rel="stylesheet" href="https://chi.qzz.io/chi-design-system/tokens.css">
@@ -394,7 +395,7 @@ button:disabled{opacity:.6;cursor:wait}
   void completeChiAuthCallback();
   $("refresh").addEventListener("click", load);
   $("clear").addEventListener("click", async () => {
-    if (!window.smsMessages?.length) {
+    if (!(window.smsMessages || []).length) {
       showToast("目前沒有簡訊可清除");
       return;
     }
