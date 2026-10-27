@@ -23,17 +23,19 @@ function authorized(request, env) {
   return Boolean(expected && provided && provided === expected);
 }
 
+const SMS_CHI_AUTH_CLIENT_ID = "__CHI_AUTH_CLIENT_ID__";
+
 async function authorizedChiAuth(request) {
   const authorization = request.headers.get("Authorization") || "";
   if (!/^Bearer [A-Za-z0-9_-]{40,80}$/.test(authorization)) return false;
   try {
-    const response = await fetch("https://auth.chi.qzz.io/api/userinfo", {
+    const response = await fetch("https://auth.chi.qzz.io/api/userinfo?client_id=" + encodeURIComponent(SMS_CHI_AUTH_CLIENT_ID), {
       headers: { Authorization: authorization, Accept: "application/json" },
       cache: "no-store",
     });
     if (!response.ok) return false;
     const identity = await response.json();
-    return identity.sub === "chi-owner";
+    return identity.sub === "chi-owner" && identity.aud === SMS_CHI_AUTH_CLIENT_ID;
   } catch {
     return false;
   }
@@ -182,7 +184,7 @@ button:disabled{opacity:.6;cursor:wait}
   let accessToken = "";
   let toastTimer;
   const AUTH_ORIGIN = "https://auth.chi.qzz.io";
-  const CHI_AUTH_CLIENT_ID = "__CHI_AUTH_CLIENT_ID__";
+  const CHI_AUTH_CLIENT_ID = "${SMS_CHI_AUTH_CLIENT_ID}";
   const REDIRECT_URI = "https://sms.chi.qzz.io/";
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
