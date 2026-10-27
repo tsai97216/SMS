@@ -1,6 +1,6 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
 };
 
@@ -91,6 +91,7 @@ body.chi-page{display:flex;min-height:100vh;min-height:100dvh;flex-direction:col
 .sms-code{color:var(--chi-color-text-strong);font-family:var(--chi-font-mono);font-size:1.35rem;font-weight:750;letter-spacing:.08em;overflow-wrap:anywhere}
 .sms-item-actions{display:flex;justify-content:flex-end;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
 .sms-item-actions .chi-button{min-height:36px;padding-inline:.8rem;font-size:var(--chi-text-xs)}
+.sms-item-actions .sms-delete{color:var(--chi-color-danger,var(--chi-color-text));border-color:var(--chi-color-border-strong)}
 .sms-hidden{display:none!important}
 .sms-status{min-height:1.5rem;margin:.5rem 0;color:var(--chi-color-text-muted);font-size:var(--chi-text-sm)}
 .sms-toast{position:fixed;right:1rem;bottom:1rem;z-index:50;max-width:min(26rem,calc(100vw - 2rem));padding:.75rem 1rem;border:1px solid var(--chi-color-border-strong);border-radius:var(--chi-radius-md);background:var(--chi-color-surface-raised);color:var(--chi-color-text);box-shadow:var(--chi-shadow-md)}
@@ -150,6 +151,7 @@ button:disabled{opacity:.6;cursor:wait}
       <input id="search" class="chi-input" type="search" placeholder="搜尋寄件者或簡訊內容" aria-label="搜尋寄件者或簡訊內容">
       <div class="sms-toolbar-actions">
         <button id="refresh" class="chi-button" type="button">重新整理</button>
+        <button id="export" class="chi-button" type="button">匯出 CSV</button>
         <button id="clear" class="chi-button chi-button--danger" type="button">清除全部簡訊</button>
       </div>
     </div>
@@ -291,7 +293,7 @@ button:disabled{opacity:.6;cursor:wait}
       return '<article class="sms-item"><div class="sms-item-head"><h2 class="sms-sender">' + esc(message.sender || "未知寄件者") + '</h2><time class="sms-time">' + esc(formatDate(message.received_at)) + '</time></div>' +
         '<div class="sms-message">' + esc(message.message) + '</div>' +
         (code ? '<div class="sms-code-row"><div><span class="sms-code-label">偵測到驗證碼</span><span class="sms-code">' + esc(code) + '</span></div><button class="chi-button chi-button--primary" type="button" data-copy-code="' + esc(code) + '">複製驗證碼</button></div>' : '') +
-        '<div class="sms-item-actions"><button class="chi-button" type="button" data-copy-message="' + esc(message.id) + '">複製完整簡訊</button></div></article>';
+        '<div class="sms-item-actions"><button class="chi-button" type="button" data-copy-message="' + esc(message.id) + '">複製完整簡訊</button><button class="chi-button sms-delete" type="button" data-delete-message="' + esc(message.id) + '">刪除此則</button></div></article>';
     }).join("");
   }
   function base64Url(bytes) {
