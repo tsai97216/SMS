@@ -6,3 +6,7 @@ compatibility_date = "2026-10-27"
 binding = "SMS_DB"
 database_name = "sms-inbox"
 database_id = "3cef1a88-63c0-4224-bc2b-68b814855338"
+
+[[routes]]
+pattern = "sms.chi.qzz.io"
+custom_domain = true
