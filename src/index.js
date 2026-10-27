@@ -23,6 +23,22 @@ function authorized(request, env) {
   return Boolean(expected && provided && provided === expected);
 }
 
+async function authorizedChiAuth(request) {
+  const authorization = request.headers.get("Authorization") || "";
+  if (!/^Bearer [A-Za-z0-9_-]{40,80}$/.test(authorization)) return false;
+  try {
+    const response = await fetch("https://auth.chi.qzz.io/api/userinfo", {
+      headers: { Authorization: authorization, Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    const identity = await response.json();
+    return identity.sub === "chi-owner";
+  } catch {
+    return false;
+  }
+}
+
 function page() {
   return new Response(`<!doctype html>
 <html lang="zh-Hant">
@@ -118,11 +134,8 @@ button:disabled{opacity:.6;cursor:wait}
   <section id="login" class="chi-panel sms-login">
     <p class="sms-section-label">PRIVATE INBOX</p>
     <h2>登入簡訊收件匣</h2>
-    <p class="chi-description">使用 SMS Forwarder API Key 驗證身分。金鑰只在目前頁面記憶體中使用，不會儲存到瀏覽器。</p>
-    <form id="loginForm" class="sms-form">
-      <label class="sms-field"><span class="chi-label">API Key</span><input id="key" class="chi-input" type="password" autocomplete="off" placeholder="輸入 API Key" required></label>
-      <button class="chi-button chi-button--primary" type="submit">登入收件匣</button>
-    </form>
+    <p class="chi-description">使用 Chi Auth 與已註冊的 Passkey 安全登入。Chi SMS 不會保存你的 Chi Auth 密碼或 Passkey。</p>
+    <button id="loginChiAuth" class="chi-button chi-button--primary" type="button">使用 Chi Auth 登入</button>
     <p id="loginStatus" class="sms-status" role="status" aria-live="polite"></p>
   </section>
   <section id="inbox" class="sms-hidden">
@@ -134,7 +147,7 @@ button:disabled{opacity:.6;cursor:wait}
       <input id="search" class="chi-input" type="search" placeholder="搜尋寄件者或簡訊內容" aria-label="搜尋寄件者或簡訊內容">
       <div class="sms-toolbar-actions">
         <button id="refresh" class="chi-button" type="button">重新整理</button>
-        <button id="test" class="chi-button" type="button">新增測試訊息</button>
+        <button id="clear" class="chi-button chi-button--danger" type="button">清除全部簡訊</button>
       </div>
     </div>
     <p id="status" class="sms-status" role="status" aria-live="polite"></p>
@@ -165,8 +178,11 @@ button:disabled{opacity:.6;cursor:wait}
   });
   media.addEventListener?.("change", () => { if (theme === "system") applyTheme("system"); });
 
-  let apiKey = "";
+  let accessToken = "";
   let toastTimer;
+  const AUTH_ORIGIN = "https://auth.chi.qzz.io";
+  const CHI_AUTH_CLIENT_ID = "__CHI_AUTH_CLIENT_ID__";
+  const REDIRECT_URI = "https://sms.chi.qzz.io/";
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -242,8 +258,13 @@ button:disabled{opacity:.6;cursor:wait}
   async function load() {
     $("status").textContent = "正在載入簡訊…";
     try {
-      const response = await fetch("/api/messages", { headers: { "X-API-Key": apiKey } });
-      if (response.status === 401) throw new Error("API Key 無效，請重新登入。");
+      const response = await fetch("/api/messages", { headers: { Authorization: "Bearer " + accessToken } });
+      if (response.status === 401) {
+        accessToken = "";
+        showInbox(false);
+        $("loginStatus").textContent = "Chi Auth 授權已過期或失效，請重新登入。";
+        throw new Error("授權已失效，請重新登入。");
+      }
       if (!response.ok) throw new Error("讀取失敗，請稍後重試（" + response.status + "）。");
       const data = await response.json();
       window.smsMessages = data.messages || [];
@@ -270,40 +291,134 @@ button:disabled{opacity:.6;cursor:wait}
         '<div class="sms-item-actions"><button class="chi-button" type="button" data-copy-message="' + esc(message.id) + '">複製完整簡訊</button></div></article>';
     }).join("");
   }
-  $("loginForm").addEventListener("submit", async event => {
-    event.preventDefault();
-    apiKey = $("key").value;
-    $("loginStatus").textContent = "正在驗證…";
-    const submit = $("loginForm").querySelector('button[type="submit"]');
-    submit.disabled = true;
+  function base64Url(bytes) {
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  }
+  function randomVerifier() {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return base64Url(bytes);
+  }
+  async function createChallenge(verifier) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+    return base64Url(new Uint8Array(digest));
+  }
+  async function startChiAuthLogin() {
+    if (!CHI_AUTH_CLIENT_ID || CHI_AUTH_CLIENT_ID === "__CHI_AUTH_CLIENT_ID__") {
+      $("loginStatus").textContent = "Chi Auth 尚未完成應用註冊，請先在 Chi Auth 登記 Chi SMS 回呼網址。";
+      return;
+    }
+    $("loginChiAuth").disabled = true;
+    $("loginStatus").textContent = "正在前往 Chi Auth…";
     try {
-      const response = await fetch("/api/messages", { headers: { "X-API-Key": apiKey } });
-      if (!response.ok) throw new Error("驗證失敗，請確認 API Key。");
-      const data = await response.json();
-      window.smsMessages = data.messages || [];
-      $("key").value = "";
+      const state = randomVerifier();
+      const verifier = randomVerifier();
+      sessionStorage.setItem("chi-sms-oauth-state", state);
+      sessionStorage.setItem("chi-sms-oauth-verifier", verifier);
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: CHI_AUTH_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        code_challenge: await createChallenge(verifier),
+        code_challenge_method: "S256",
+        state,
+      });
+      location.assign(AUTH_ORIGIN + "/api/authorize?" + params.toString());
+    } catch (error) {
+      $("loginStatus").textContent = error.message || "無法啟動 Chi Auth 登入。";
+      $("loginChiAuth").disabled = false;
+    }
+  }
+  async function completeChiAuthCallback() {
+    const params = new URLSearchParams(location.search);
+    const code = params.get("code");
+    const returnedState = params.get("state");
+    const authError = params.get("error");
+    if (!code && !authError) return;
+    history.replaceState({}, document.title, location.pathname);
+    if (authError) {
+      $("loginStatus").textContent = "Chi Auth 登入未完成：" + authError;
+      sessionStorage.removeItem("chi-sms-oauth-state");
+      sessionStorage.removeItem("chi-sms-oauth-verifier");
+      return;
+    }
+    const expectedState = sessionStorage.getItem("chi-sms-oauth-state");
+    const verifier = sessionStorage.getItem("chi-sms-oauth-verifier");
+    sessionStorage.removeItem("chi-sms-oauth-state");
+    sessionStorage.removeItem("chi-sms-oauth-verifier");
+    if (!expectedState || !verifier || !returnedState || returnedState !== expectedState) {
+      $("loginStatus").textContent = "登入驗證失敗，請重新嘗試。";
+      return;
+    }
+    $("loginStatus").textContent = "正在完成 Chi Auth 登入…";
+    $("loginChiAuth").disabled = true;
+    try {
+      const response = await fetch(AUTH_ORIGIN + "/api/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          client_id: CHI_AUTH_CLIENT_ID,
+          code,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: verifier,
+        }),
+        cache: "no-store",
+      });
+      const token = await response.json().catch(() => ({}));
+      if (!response.ok || typeof token.access_token !== "string") {
+        throw new Error(token.error || "Chi Auth 授權碼交換失敗。");
+      }
+      accessToken = token.access_token;
+      const identity = await fetch(AUTH_ORIGIN + "/api/userinfo?client_id=" + encodeURIComponent(CHI_AUTH_CLIENT_ID), {
+        headers: { Authorization: "Bearer " + accessToken },
+        cache: "no-store",
+      });
+      if (!identity.ok) throw new Error("無法驗證 Chi Auth 身分，請重新登入。");
+      const user = await identity.json();
+      if (user.sub !== "chi-owner") throw new Error("此 Chi Auth 帳號無權存取收件匣。");
       showInbox(true);
-      render();
+      await load();
       $("loginStatus").textContent = "";
     } catch (error) {
-      apiKey = "";
-      $("loginStatus").textContent = error.message || "登入失敗。";
+      accessToken = "";
+      showInbox(false);
+      $("loginStatus").textContent = error.message || "Chi Auth 登入失敗。";
     } finally {
-      submit.disabled = false;
+      $("loginChiAuth").disabled = false;
     }
-  });
+  }
+  $("loginChiAuth").addEventListener("click", startChiAuthLogin);
+  void completeChiAuthCallback();
   $("refresh").addEventListener("click", load);
-  $("test").addEventListener("click", async () => {
-    const button = $("test");
+  $("clear").addEventListener("click", async () => {
+    if (!window.smsMessages?.length) {
+      showToast("目前沒有簡訊可清除");
+      return;
+    }
+    if (!window.confirm("確定清除資料庫中的全部簡訊？此操作無法復原，也不會刪除 Discord 中的通知。")) return;
+    const button = $("clear");
     button.disabled = true;
-    $("status").textContent = "正在寫入測試訊息…";
+    $("status").textContent = "正在清除簡訊…";
     try {
-      const response = await fetch("/api/test", { method: "POST", headers: { "X-API-Key": apiKey } });
-      if (!response.ok) throw new Error("測試寫入失敗（" + response.status + "）。");
-      await load();
-      showToast("測試訊息已新增");
+      const response = await fetch("/api/messages/clear", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + accessToken },
+      });
+      if (response.status === 401) {
+        accessToken = "";
+        showInbox(false);
+        throw new Error("Chi Auth 授權已過期，請重新登入。");
+      }
+      if (!response.ok) throw new Error("清除失敗（" + response.status + "）。");
+      window.smsMessages = [];
+      render();
+      $("status").textContent = "";
+      showToast("已清除全部簡訊");
     } catch (error) {
-      $("status").textContent = error.message || "測試寫入失敗。";
+      $("status").textContent = error.message || "清除失敗。";
     } finally {
       button.disabled = false;
     }
@@ -349,7 +464,7 @@ export default {
     }
 
     if (request.method === "GET" && url.pathname === "/api/messages") {
-      if (!authorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      if (!(await authorizedChiAuth(request))) return json({ error: "Unauthorized" }, 401);
       if (!env.SMS_DB) return json({ error: "Database is not configured" }, 503);
       try {
         const result = await env.SMS_DB.prepare(
@@ -361,17 +476,14 @@ export default {
       }
     }
 
-    if (request.method === "POST" && url.pathname === "/api/test") {
-      if (!authorized(request, env)) return json({ error: "Unauthorized" }, 401);
+    if (request.method === "POST" && url.pathname === "/api/messages/clear") {
+      if (!(await authorizedChiAuth(request))) return json({ error: "Unauthorized" }, 401);
       if (!env.SMS_DB) return json({ error: "Database is not configured" }, 503);
-      const receivedAt = new Date().toISOString();
       try {
-        await env.SMS_DB.prepare(
-          "INSERT INTO messages (sender, message, received_at) VALUES (?, ?, ?)"
-        ).bind("Chi SMS 網站測試", "這是一則測試訊息，用來確認資料庫寫入與收件匣顯示正常。", receivedAt).run();
-        return json({ ok: true, saved: true });
+        const result = await env.SMS_DB.prepare("DELETE FROM messages").run();
+        return json({ ok: true, cleared: Number(result.meta?.changes || 0) });
       } catch {
-        return json({ error: "Could not save test message to database" }, 500);
+        return json({ error: "Could not clear messages" }, 500);
       }
     }
 
