@@ -188,7 +188,7 @@ button:disabled{opacity:.6;cursor:wait}
     const candidates = [...text.matchAll(/(?<![0-9])[0-9]{4,8}(?![0-9])/g)];
     if (!candidates.length) return "";
 
-    const keyword = /驗證碼|验证码|verification\\s*code|one[- ]time\\s*code|\\bOTP\\b/i;
+    const keyword = /驗證碼|验证码|認證碼|认证码|verification\s*code|one[- ]time\s*code|\bOTP\b/i;
     const keywords = [...text.matchAll(new RegExp(keyword.source, "gi"))];
     if (keywords.length) {
       // Choose the numeric candidate nearest to a verification-code phrase.
