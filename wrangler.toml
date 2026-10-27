@@ -1,3 +1,8 @@
 name = "sms-forwarder"
 main = "src/index.js"
 compatibility_date = "2026-10-27"
+
+[[d1_databases]]
+binding = "SMS_DB"
+database_name = "sms-inbox"
+database_id = "3cef1a88-63c0-4224-bc2b-68b814855338"
