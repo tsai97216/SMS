@@ -213,8 +213,8 @@ button:disabled{opacity:.6;cursor:wait}
       if (best) return best.code;
     }
 
-    // Without an explicit keyword, only auto-detect when there is one unambiguous code.
-    return candidates.length === 1 ? candidates[0][0] : "";
+    // Avoid mistaking order numbers, phone fragments, or unrelated IDs for verification codes.
+    return "";
   }
   function formatDate(value) {
     if (!value) return "時間未知";
