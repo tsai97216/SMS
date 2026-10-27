@@ -349,7 +349,13 @@ button:disabled{opacity:.6;cursor:wait}
     const code = params.get("code");
     const returnedState = params.get("state");
     const authError = params.get("error");
-    if (!code && !authError) return;
+    if (!code && !authError) {
+      if (accessToken) {
+        showInbox(true);
+        await load();
+      }
+      return;
+    }
     history.replaceState({}, document.title, location.pathname);
     if (authError) {
       $("loginStatus").textContent = "Chi Auth 登入未完成：" + authError;
