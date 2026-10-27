@@ -42,7 +42,7 @@ async function authorizedChiAuth(request) {
 }
 
 function page() {
-  return new Response(`<!doctype html>
+  return new Response(String.raw`<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -437,12 +437,14 @@ button:disabled{opacity:.6;cursor:wait}
     }
   });
   $("logout").addEventListener("click", () => {
-    apiKey = "";
+    accessToken = "";
     window.smsMessages = [];
     $("items").innerHTML = "";
     $("search").value = "";
+    $("status").textContent = "";
+    $("loginStatus").textContent = "";
     showInbox(false);
-    $("key").focus();
+    $("loginChiAuth").focus();
   });
 })();
 </script>
