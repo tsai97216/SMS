@@ -23,7 +23,7 @@ function authorized(request, env) {
   return Boolean(expected && provided && provided === expected);
 }
 
-const SMS_CHI_AUTH_CLIENT_ID = "__CHI_AUTH_CLIENT_ID__";
+const SMS_CHI_AUTH_CLIENT_ID = "z2gX_1zn_jmwhnoia2JiVY6FeuTyPcun";
 
 async function authorizedChiAuth(request) {
   const authorization = request.headers.get("Authorization") || "";
@@ -309,7 +309,7 @@ button:disabled{opacity:.6;cursor:wait}
     return base64Url(new Uint8Array(digest));
   }
   async function startChiAuthLogin() {
-    if (!CHI_AUTH_CLIENT_ID || CHI_AUTH_CLIENT_ID === "__CHI_AUTH_CLIENT_ID__") {
+    if (!CHI_AUTH_CLIENT_ID || CHI_AUTH_CLIENT_ID === "z2gX_1zn_jmwhnoia2JiVY6FeuTyPcun") {
       $("loginStatus").textContent = "Chi Auth 尚未完成應用註冊，請先在 Chi Auth 登記 Chi SMS 回呼網址。";
       return;
     }
