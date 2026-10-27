@@ -19,7 +19,7 @@ function safeText(value, maxLength = 1000) {
 function authorized(request, env) {
   const expected = env.SMS_FORWARDER_API_KEY;
   const provided = request.headers.get("X-API-Key") ||
-    request.headers.get("Authorization")?.replace(/^Bearer\\s+/i, "");
+    request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
   return Boolean(expected && provided && provided === expected);
 }
 
