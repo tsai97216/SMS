@@ -184,13 +184,37 @@ button:disabled{opacity:.6;cursor:wait}
   }
   function extractCode(message) {
     const text = String(message || "");
-    const runs = [...text.matchAll(/[0-9]{4,8}/g)];
-    const keywords = /驗證碼|verification\s*code|one[- ]time\s*code|\bOTP\b/i;
-    for (const run of runs) {
-      const nearby = text.slice(Math.max(0, run.index - 36), Math.min(text.length, run.index + run[0].length + 36));
-      if (keywords.test(nearby)) return run[0];
+    // Match standalone 4–8 digit codes, including codes prefixed with letters (e.g. G-718604).
+    const candidates = [...text.matchAll(/(?<![0-9])[0-9]{4,8}(?![0-9])/g)];
+    if (!candidates.length) return "";
+
+    const keyword = /驗證碼|验证码|verification\\s*code|one[- ]time\\s*code|\\bOTP\\b/i;
+    const keywords = [...text.matchAll(new RegExp(keyword.source, "gi"))];
+    if (keywords.length) {
+      // Choose the numeric candidate nearest to a verification-code phrase.
+      // This handles both “驗證碼：123456” and “G-123456 is your Google verification code”.
+      let best = null;
+      for (const candidate of candidates) {
+        const codeStart = candidate.index;
+        const codeEnd = codeStart + candidate[0].length;
+        for (const word of keywords) {
+          const wordStart = word.index;
+          const wordEnd = wordStart + word[0].length;
+          const distance = wordEnd < codeStart
+            ? codeStart - wordEnd
+            : codeEnd < wordStart
+              ? wordStart - codeEnd
+              : 0;
+          if (distance <= 64 && (!best || distance < best.distance)) {
+            best = { code: candidate[0], distance };
+          }
+        }
+      }
+      if (best) return best.code;
     }
-    return runs.length === 1 ? runs[0][0] : "";
+
+    // Without an explicit keyword, only auto-detect when there is one unambiguous code.
+    return candidates.length === 1 ? candidates[0][0] : "";
   }
   function formatDate(value) {
     if (!value) return "時間未知";
