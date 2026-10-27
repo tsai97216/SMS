@@ -358,7 +358,7 @@ button:disabled{opacity:.6;cursor:wait}
     $("loginStatus").textContent = "正在完成 Chi Auth 登入…";
     $("loginChiAuth").disabled = true;
     try {
-      const response = await fetch(AUTH_ORIGIN + "/api/token", {
+      const response = await fetch(AUTH_ORIGIN + "/api/token?client_id=" + encodeURIComponent(CHI_AUTH_CLIENT_ID), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
