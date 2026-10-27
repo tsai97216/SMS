@@ -23,6 +23,34 @@ function authorized(request, env) {
   return Boolean(expected && provided && provided === expected);
 }
 
+
+function extractVerificationCode(message) {
+  const text = String(message || "");
+  const candidates = [...text.matchAll(/(?<![0-9])[0-9]{4,8}(?![0-9])/g)];
+  if (!candidates.length) return "";
+  const keyword = /驗證碼|验证码|認證碼|认证码|verification\\s*code|one[- ]time\\s*code|\\bOTP\\b/i;
+  const keywords = [...text.matchAll(new RegExp(keyword.source, "gi"))];
+  if (!keywords.length) return "";
+  let best = null;
+  for (const candidate of candidates) {
+    const codeStart = candidate.index;
+    const codeEnd = codeStart + candidate[0].length;
+    for (const word of keywords) {
+      const wordStart = word.index;
+      const wordEnd = wordStart + word[0].length;
+      const distance = wordEnd < codeStart
+        ? codeStart - wordEnd
+        : codeEnd < wordStart
+          ? wordStart - codeEnd
+          : 0;
+      if (distance <= 64 && (!best || distance < best.distance)) {
+        best = { code: candidate[0], distance };
+      }
+    }
+  }
+  return best ? best.code : "";
+}
+
 const SMS_CHI_AUTH_CLIENT_ID = "z2gX_1zn_jmwhnoia2JiVY6FeuTyPcun";
 
 async function authorizedChiAuth(request) {
@@ -604,17 +632,27 @@ export default {
 
     if (!env.DISCORD_WEBHOOK_URL) return json({ error: "Discord webhook is not configured" }, 500);
 
+    const verificationCode = extractVerificationCode(message);
+    const discordFields = [
+      { name: "📱 寄件者", value: sender || "未知寄件者", inline: true },
+      { name: "🕒 收到時間", value: receivedAt || "未知時間", inline: true },
+    ];
+    if (verificationCode) {
+      discordFields.push({
+        name: "🔐 驗證碼（長按可複製）",
+        value: "`" + verificationCode + "`",
+        inline: false,
+      });
+    }
+    discordFields.push({ name: "💬 簡訊內容", value: message || "(空白)", inline: false });
+
     const discordPayload = {
       username: "SMS Forwarder",
       allowed_mentions: { parse: [] },
       embeds: [{
-        title: "📩 收到新簡訊",
+        title: verificationCode ? "🔐 收到簡訊驗證碼" : "📩 收到新簡訊",
         color: 5793266,
-        fields: [
-          { name: "📱 寄件者", value: sender || "未知寄件者", inline: true },
-          { name: "🕒 收到時間", value: receivedAt || "未知時間", inline: true },
-          { name: "💬 簡訊內容", value: message || "(空白)", inline: false },
-        ],
+        fields: discordFields,
         footer: { text: "iPhone SMS Forwarder" },
         timestamp: new Date().toISOString(),
       }],
