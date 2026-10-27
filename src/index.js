@@ -309,7 +309,7 @@ button:disabled{opacity:.6;cursor:wait}
     return base64Url(new Uint8Array(digest));
   }
   async function startChiAuthLogin() {
-    if (!CHI_AUTH_CLIENT_ID || CHI_AUTH_CLIENT_ID === "z2gX_1zn_jmwhnoia2JiVY6FeuTyPcun") {
+    if (!CHI_AUTH_CLIENT_ID || CHI_AUTH_CLIENT_ID.includes("__")) {
       $("loginStatus").textContent = "Chi Auth 尚未完成應用註冊，請先在 Chi Auth 登記 Chi SMS 回呼網址。";
       return;
     }
