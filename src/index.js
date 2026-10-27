@@ -183,7 +183,15 @@ button:disabled{opacity:.6;cursor:wait}
   });
   media.addEventListener?.("change", () => { if (theme === "system") applyTheme("system"); });
 
-  let accessToken = "";
+  let setAccessToken("");
+  try { accessToken = sessionStorage.getItem("chi-sms-access-token") || ""; } catch {}
+  function setAccessToken(value) {
+    accessToken = value || "";
+    try {
+      if (accessToken) sessionStorage.setItem("chi-sms-access-token", accessToken);
+      else sessionStorage.removeItem("chi-sms-access-token");
+    } catch {}
+  }
   let toastTimer;
   const AUTH_ORIGIN = "https://auth.chi.qzz.io";
   const CHI_AUTH_CLIENT_ID = "${SMS_CHI_AUTH_CLIENT_ID}";
@@ -265,7 +273,7 @@ button:disabled{opacity:.6;cursor:wait}
     try {
       const response = await fetch("/api/messages", { headers: { Authorization: "Bearer " + accessToken } });
       if (response.status === 401) {
-        accessToken = "";
+        setAccessToken("");
         showInbox(false);
         $("loginStatus").textContent = "Chi Auth 授權已過期或失效，請重新登入。";
         throw new Error("授權已失效，請重新登入。");
@@ -376,7 +384,7 @@ button:disabled{opacity:.6;cursor:wait}
       if (!response.ok || typeof token.access_token !== "string") {
         throw new Error(token.error || "Chi Auth 授權碼交換失敗。");
       }
-      accessToken = token.access_token;
+      setAccessToken(token.access_token);
       const identity = await fetch(AUTH_ORIGIN + "/api/userinfo?client_id=" + encodeURIComponent(CHI_AUTH_CLIENT_ID), {
         headers: { Authorization: "Bearer " + accessToken },
         cache: "no-store",
@@ -388,7 +396,7 @@ button:disabled{opacity:.6;cursor:wait}
       await load();
       $("loginStatus").textContent = "";
     } catch (error) {
-      accessToken = "";
+      setAccessToken("");
       showInbox(false);
       $("loginStatus").textContent = error.message || "Chi Auth 登入失敗。";
     } finally {
@@ -413,7 +421,7 @@ button:disabled{opacity:.6;cursor:wait}
         headers: { Authorization: "Bearer " + accessToken },
       });
       if (response.status === 401) {
-        accessToken = "";
+        setAccessToken("");
         showInbox(false);
         throw new Error("Chi Auth 授權已過期，請重新登入。");
       }
@@ -450,7 +458,7 @@ button:disabled{opacity:.6;cursor:wait}
         headers: { Authorization: "Bearer " + accessToken },
       }).then(async response => {
         if (response.status === 401) {
-          accessToken = "";
+          setAccessToken("");
           showInbox(false);
           throw new Error("Chi Auth 授權已過期，請重新登入。");
         }
@@ -490,7 +498,7 @@ button:disabled{opacity:.6;cursor:wait}
     showToast("已匯出 " + messages.length + " 則簡訊");
   });
   $("logout").addEventListener("click", () => {
-    accessToken = "";
+    setAccessToken("");
     window.smsMessages = [];
     $("items").innerHTML = "";
     $("search").value = "";
