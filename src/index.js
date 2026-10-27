@@ -42,7 +42,7 @@ input{width:100%;margin:7px 0 12px}button{cursor:pointer;background:#292b35}butt
 <header><div><h1>Chi SMS Inbox</h1><p>你的簡訊收件匣</p></div><button id="logout" class="hidden">登出</button></header>
 <section id="login" class="panel"><h2>登入收件匣</h2><p>輸入 SMS Forwarder API Key 以讀取簡訊。</p>
 <form id="loginForm"><input id="key" type="password" autocomplete="off" placeholder="API Key" required><button type="submit">登入</button></form><div id="loginStatus" class="status"></div></section>
-<section id="inbox" class="hidden"><div class="panel"><input id="search" type="search" placeholder="搜尋寄件者或簡訊內容"><div class="actions"><button id="refresh">重新整理</button><span id="count" class="status"></span></div></div><div id="status" class="status"></div><div id="items"></div></section>
+<section id="inbox" class="hidden"><div class="panel"><input id="search" type="search" placeholder="搜尋寄件者或簡訊內容"><div class="actions"><button id="refresh">重新整理</button><button id="test">新增測試訊息</button><span id="count" class="status"></span></div></div><div id="status" class="status"></div><div id="items"></div></section>
 <script>
 let apiKey="";
 const $=id=>document.getElementById(id);
@@ -51,7 +51,7 @@ function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&l
 async function load(){ $("status").textContent="載入中…";try{const r=await fetch("/api/messages",{headers:{"X-API-Key":apiKey}});if(r.status===401)throw Error("API Key 無效，請重新登入。");if(!r.ok)throw Error("讀取失敗："+r.status);const data=await r.json();window.smsMessages=data.messages||[];render();$("status").textContent="";}catch(e){$("status").textContent=e.message;}}
 function render(){const q=$("search").value.trim().toLowerCase();const list=(window.smsMessages||[]).filter(m=>(m.sender+" "+m.message).toLowerCase().includes(q));$("count").textContent=list.length+" 則簡訊";$("items").innerHTML=list.map(m=>'<article class="sms"><div class="meta"><span class="sender">'+esc(m.sender)+'</span><time>'+esc(m.received_at)+'</time></div><div class="message">'+esc(m.message)+'</div></article>').join("")||'<div class="panel">沒有符合的簡訊</div>';}
 $("loginForm").addEventListener("submit",async e=>{e.preventDefault();apiKey=$("key").value;$("loginStatus").textContent="驗證中…";try{const r=await fetch("/api/messages",{headers:{"X-API-Key":apiKey}});if(!r.ok)throw Error("驗證失敗，請確認 API Key。");const data=await r.json();window.smsMessages=data.messages||[];$("key").value="";showInbox(true);render();$("loginStatus").textContent="";}catch(err){apiKey="";$("loginStatus").textContent=err.message;}});
-$("refresh").addEventListener("click",load);$("search").addEventListener("input",render);$("logout").addEventListener("click",()=>{apiKey="";window.smsMessages=[];$("items").innerHTML="";showInbox(false);}); 
+$("refresh").addEventListener("click",load);$("test").addEventListener("click",async()=>{const b=$("test");b.disabled=true;$("status").textContent="正在寫入測試訊息…";try{const r=await fetch("/api/test",{method:"POST",headers:{"X-API-Key":apiKey}});if(!r.ok)throw Error("測試寫入失敗："+r.status);await load();$("status").textContent="測試訊息已寫入資料庫並重新載入。";}catch(e){$("status").textContent=e.message;}finally{b.disabled=false;}});$("search").addEventListener("input",render);$("logout").addEventListener("click",()=>{apiKey="";window.smsMessages=[];$("items").innerHTML="";showInbox(false);}); 
 </script></body></html>`, {
     headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
   });
@@ -81,6 +81,20 @@ export default {
         return json({ messages: result.results || [] });
       } catch {
         return json({ error: "Could not read messages" }, 500);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/test") {
+      if (!authorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      if (!env.SMS_DB) return json({ error: "Database is not configured" }, 503);
+      const receivedAt = new Date().toISOString();
+      try {
+        await env.SMS_DB.prepare(
+          "INSERT INTO messages (sender, message, received_at) VALUES (?, ?, ?)"
+        ).bind("Chi SMS 網站測試", "這是一則測試訊息，用來確認資料庫寫入與收件匣顯示正常。", receivedAt).run();
+        return json({ ok: true, saved: true });
+      } catch {
+        return json({ error: "Could not save test message to database" }, 500);
       }
     }
 
