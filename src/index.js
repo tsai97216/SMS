@@ -639,7 +639,7 @@ export default {
     ];
     if (verificationCode) {
       discordFields.push({
-        name: "🔐 驗證碼（長按可複製）",
+        name: "🔐 驗證碼",
         value: "`" + verificationCode + "`",
         inline: false,
       });
