@@ -79,7 +79,7 @@ function page() {
 <meta name="theme-color" content="#f6f8fc">
 <meta name="description" content="Chi SMS 簡訊收件匣">
 <meta name="referrer" content="no-referrer">
-<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/tsai97216/chi-design-system/main/logo/blue-w.png">
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/47tsai/chi-design-system/main/logo/blue-w.png">
 <title>Chi SMS · 簡訊收件匣</title>
 <link rel="stylesheet" href="https://chi.qzz.io/chi-design-system/tokens.css">
 <link rel="stylesheet" href="https://chi.qzz.io/chi-design-system/components.css">
@@ -148,8 +148,8 @@ button:disabled{opacity:.6;cursor:wait}
 <header class="chi-site-header">
   <div class="chi-container chi-site-header__inner">
     <a class="sms-brand" href="/" aria-label="Chi SMS 首頁">
-      <img class="logo-light" src="https://raw.githubusercontent.com/tsai97216/chi-design-system/main/logo/blue-b.png" alt="">
-      <img class="logo-dark" src="https://raw.githubusercontent.com/tsai97216/chi-design-system/main/logo/blue-w.png" alt="">
+      <img class="logo-light" src="https://raw.githubusercontent.com/47tsai/chi-design-system/main/logo/blue-b.png" alt="">
+      <img class="logo-dark" src="https://raw.githubusercontent.com/47tsai/chi-design-system/main/logo/blue-w.png" alt="">
       <span>CHI SMS</span>
     </a>
     <div class="sms-header-actions">
